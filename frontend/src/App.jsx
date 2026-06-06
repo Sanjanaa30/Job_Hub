@@ -47,7 +47,7 @@ const AUTH_KEY = "jah:pw";
 const getPw = () => { try { return localStorage.getItem(AUTH_KEY) || ""; } catch (e) { return ""; } };
 const setPw = (pw) => { try { pw ? localStorage.setItem(AUTH_KEY, pw) : localStorage.removeItem(AUTH_KEY); } catch (e) {} };
 const authHeader = () => { const pw = getPw(); return pw ? { "X-App-Password": pw } : {}; };
-// Returns true if the stored password is accepted (or none is required).
+// true if our saved password works (or there's no password set)
 async function checkAuth() {
   try {
     const res = await fetch(`${API_BASE}/api/login`, { headers: { ...authHeader() } });
@@ -111,8 +111,7 @@ async function fetchFileText(id) {
   const d = await res.json();
   return d.text || "";
 }
-// Extract text only (no storage) — used by the JD Keywords scratch tab so
-// nothing is persisted and a refresh leaves no trace.
+// just pull the text out, don't store the file (JD Keywords tab is throwaway)
 async function extractResumeText(file) {
   const fd = new FormData();
   fd.append("file", file);
@@ -450,7 +449,7 @@ export default function App() {
     } catch (e) { alert(e.message); }
   };
 
-  // Re-run the match score for every role that has BOTH its own resume and a JD.
+  // re-score every role that has both a resume and a JD
   const reanalyzeAll = async () => {
     const targets = apps.filter((a) => a.jd && a.jd.trim() && a.resumeText && a.resumeText.trim());
     if (targets.length === 0) { setReMsg({ ok: false, text: "No roles have both a resume and a job description yet." }); return; }
@@ -722,10 +721,8 @@ function AddModal({ onSave, onClose }) {
 }
 
 // ============================ Shared match results =========================
-// Renders a resume↔JD comparison (score, format checks, keywords, suggestions,
-// ATS rewrites, highlighted JD). Used by both the role workspace and the
-// standalone JD Keywords tab. `tailored`/`onTailoredChange` are controlled by
-// the parent so the rewrites can persist per-application where that matters.
+// the resume↔JD comparison UI, shared by the role view and the JD Keywords tab.
+// parent owns `tailored` so the rewrites can be saved per role.
 function MatchResults({ resume, jd, analysis, tailored, onTailoredChange }) {
   const an = analysis, tl = tailored;
   const checks = formatChecks(resume);
@@ -981,9 +978,8 @@ const blankNote = () => ({ id: crypto.randomUUID(), title: "", body: "", updated
 const fmtNoteDate = (ts) => (ts ? new Date(ts).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "");
 const stripHtml = (html) => { const d = document.createElement("div"); d.innerHTML = html || ""; return (d.textContent || "").replace(/\s+/g, " ").trim(); };
 
-// Lightweight rich-text editor using the browser's built-in editing commands.
-// Stores the note as HTML. Uncontrolled (initial content set once) so the
-// caret never jumps; remount via a `key` to load a different note.
+// small rich-text editor on contentEditable + execCommand, stores HTML.
+// set the html once (uncontrolled) so the cursor doesn't jump — key it to reload.
 function RichEditor({ value, onChange }) {
   const ref = useRef(null);
   useEffect(() => { if (ref.current) ref.current.innerHTML = value || ""; }, []);   // init once
@@ -1097,7 +1093,7 @@ function Workspace({ app, docLinks, onUpdate, onClose }) {
   const [rUp, setRUp] = useState(false);
   const [rErr, setRErr] = useState("");
   const [preview, setPreview] = useState(false);
-  // This record's own resume (per-record, stored on the application).
+  // each role keeps its own resume
   const resume = draft.resumeText || "";
   const resumeName = draft.resumeName || "";
   const resumeId = draft.resumeId || null;
@@ -1137,7 +1133,7 @@ function Workspace({ app, docLinks, onUpdate, onClose }) {
       const meta = await uploadResumeFile(file);   // stores the file (for preview)
       if (!meta.hasText) throw new Error("No readable text found — try a text-based PDF or a DOCX (not a scanned image).");
       const text = await fetchFileText(meta.id);
-      // New resume for THIS record only; clear its now-stale score/rewrites.
+      // swap the resume for this role and drop the now-stale score/rewrites
       const d = { ...draft, resumeText: text, resumeId: meta.id, resumeName: meta.name, analysis: null, tailored: null };
       setDraft(d); flush(d);
     } catch (err) { setRErr(err.message); }

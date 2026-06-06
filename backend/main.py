@@ -1,20 +1,9 @@
 """
-Job Hub — FastAPI backend (deploy-anywhere).
+Job Hub backend (FastAPI).
 
-Endpoints
-  GET  /api/health        liveness + which model / db is configured
-  GET  /api/data/{key}    read a stored JSON blob
-  PUT  /api/data/{key}    write a stored JSON blob
-  GET  /api/export.xlsx   download all applications as Excel
-  POST /api/claude        proxy to Anthropic (API key stays server-side)
-
-Storage is a single key-value table behind SQLAlchemy, so the SAME code runs on
-SQLite locally and Postgres in production — switch with one env var:
-  DATABASE_URL=sqlite:///./jobhub.db                 (default, local)
-  DATABASE_URL=postgresql://user:pass@host:5432/db   (hosted, accessible anywhere)
-
-In production the backend also serves the built frontend (set STATIC_DIR), so the
-whole app is one service at one URL — open it from any device.
+Data goes in a simple key-value table via SQLAlchemy, so the same code runs on
+SQLite locally or Postgres when hosted (just change DATABASE_URL). In production
+it also serves the built frontend, so everything's one service at one URL.
 """
 import os
 import io
@@ -38,12 +27,11 @@ MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip()
 MAX_TOKENS_CAP = int(os.environ.get("MAX_TOKENS_CAP", "1500"))
 ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./jobhub.db")
-# Some hosts (Render, Heroku) give a "postgres://" URL; SQLAlchemy needs "postgresql://".
+# Render/Heroku hand out postgres:// URLs but SQLAlchemy wants postgresql://
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 STATIC_DIR = os.environ.get("STATIC_DIR", "").strip()
-# Optional shared password. If set, every /api call must send it (header
-# X-App-Password). Leave empty to run with no login (e.g. local only).
+# If set, every /api call needs this password. Empty = no login (local use).
 APP_PASSWORD = os.environ.get("APP_PASSWORD", "").strip()
 
 ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
@@ -90,14 +78,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Paths under /api that never require the password (liveness + the login probe).
+# /api paths that don't need the password (health check is used by hosts).
 OPEN_API_PATHS = {"/api/health"}
 
 
 @app.middleware("http")
 async def require_password(request: Request, call_next):
-    """When APP_PASSWORD is set, gate every /api call (except OPEN_API_PATHS and
-    CORS preflights). The frontend sends the password in the X-App-Password header."""
+    # gate /api when a password is set; skip CORS preflights and the open paths
     path = request.url.path
     if (APP_PASSWORD and request.method != "OPTIONS"
             and path.startswith("/api/") and path not in OPEN_API_PATHS):
@@ -113,7 +100,7 @@ def health():
 
 @app.get("/api/login")
 def login():
-    # Reaching here means the middleware accepted the password (or none is set).
+    # if we got past the middleware, the password was right (or there isn't one)
     return {"ok": True}
 
 

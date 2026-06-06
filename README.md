@@ -1,8 +1,7 @@
 # Application Hub
 
 A job-application tracker I built to run as a small web app — one service you can host once and open from your laptop or phone. It keeps track of where each
-application stands, and uses the Anthropic API (with your own key, kept on the
-server) to match your resume against a job description, pull out keywords, check
+application stands, and uses the Anthropic API (with your own key, kept on the server) to match your resume against a job description, pull out keywords, check
 what the posting says about visa sponsorship, and draft cover letters.
 
 ## What it does
@@ -14,17 +13,12 @@ what the posting says about visa sponsorship, and draft cover letters.
 - **JD Keywords tab** — paste any JD to get the keywords worth mirroring, or add a resume to compare the two. (The resume here is just for the session.)
 - **Notes** — simple rich-text notes (headings, bold, bullets) you can add, edit, and delete.
 - **Excel export** — download all your applications as a spreadsheet.
-- **Password** — optionally lock the whole thing behind one shared password before
-  putting it online.
+- **Password** — optionally lock the whole thing behind one shared password before putting it online.
 
 ## How it's put together
 
-- **Backend** — FastAPI. It proxies Anthropic so the key never reaches the browser,
-  stores everything in a database, holds uploaded resume files, and serves the
-  built frontend in production (so it's all one service at one URL).
-- **Frontend** — React + Vite. It calls the API at `/api/...`, which works the same
-  in local dev (Vite proxies it) and in production (same origin), so there's no
-  CORS to deal with.
+- **Backend** — FastAPI. It proxies Anthropic so the key never reaches the browser, stores everything in a database, holds uploaded resume files, and serves the built frontend in production (so it's all one service at one URL).
+- **Frontend** — React + Vite. It calls the API at `/api/...`, which works the same in local dev (Vite proxies it) and in production (same origin), so there's no CORS to deal with.
 - **Database** — same code, one env var: SQLite locally, Postgres when hosted.
 
 ## Running it locally
@@ -47,8 +41,7 @@ npm run dev                   # http://localhost:5173
 
 Health check: http://localhost:8787/api/health
 
-One gotcha: `--reload` only watches `.py` files, so if you change `.env` you have
-to restart uvicorn for it to take effect.
+One gotcha: `--reload` only watches `.py` files, so if you change `.env` you have to restart uvicorn for it to take effect.
 
 ## Running it as one service (like production, but local)
 
@@ -71,9 +64,7 @@ docker run -p 8787:8787 -e ANTHROPIC_API_KEY=sk-ant-... job-hub
 ANTHROPIC_API_KEY=sk-ant-... docker compose up --build
 ```
 
-The image builds the frontend and serves it from FastAPI, and it respects the
-platform's `$PORT`, so it works on Render, Railway, Fly.io, a VPS, etc. without
-changes.
+The image builds the frontend and serves it from FastAPI, and it respects the platform's `$PORT`, so it works on Render, Railway, Fly.io, a VPS, etc. without changes.
 
 ## Putting it online (and using it on your phone)
 
@@ -87,8 +78,7 @@ It's a website, so once it's deployed you just open the URL anywhere. Rough step
 4. Set `ANTHROPIC_API_KEY`, `APP_PASSWORD`, and `DATABASE_URL` in the host's env.
 5. Deploy, open the URL, enter the password once, and your data's there.
 
-There's no live sync, so refresh after switching devices to pull the latest. Saves
-write the whole list at once, so don't edit on two devices at the exact same time.
+There's no live sync, so refresh after switching devices to pull the latest. Saves write the whole list at once, so don't edit on two devices at the exact same time.
 
 ## Environment variables
 
@@ -106,11 +96,8 @@ Set these in `backend/.env` locally, or in the host's settings when deployed.
 
 ## A note on the API key
 
-The key only lives in the backend environment (`.env` locally, host env vars in
-production) and is git-ignored, so it never ends up in the frontend or the repo.
-When `APP_PASSWORD` is set, every `/api` request needs it, so a stranger who finds
-the URL can't use your key. The proxy also pins the model and caps the response
-size server-side.
+The key only lives in the backend environment (`.env` locally, host env vars in production) and is git-ignored, so it never ends up in the frontend or the repo.
+When `APP_PASSWORD` is set, every `/api` request needs it, so a stranger who finds the URL can't use your key. The proxy also pins the model and caps the response size server-side.
 
 If `claude-sonnet-4-6` ever goes away, set a current model in `ANTHROPIC_MODEL`
 (see the Anthropic models page).

@@ -196,6 +196,10 @@ JOB DESCRIPTION:
 // ============================ Text helpers ==================================
 const escHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const withProtocol = (u) => { const s = (u || "").trim(); return s && !/^https?:\/\//i.test(s) ? "https://" + s : s; };
+// format a date (YYYY-MM-DD string or a timestamp) to e.g. "Jun 4, 2026"
+const fmtDay = (v) => v ? (typeof v === "number" ? new Date(v) : new Date(String(v) + "T00:00:00")).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+// the date a role is grouped under: when it was applied, else when it was added
+const rowDay = (a) => a.dateApplied ? fmtDay(a.dateApplied) : (a.createdAt ? fmtDay(a.createdAt) : "No date");
 const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function highlightJD(jd, keywords) {
   let html = escHtml(jd);
@@ -296,6 +300,9 @@ const css = `
 .jt-status-chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
 .jt-status-chip .n{font-weight:500;opacity:.65}
 .jt-list{display:flex;flex-direction:column;gap:8px}
+.jt-date-head{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin:18px 0 2px;padding-left:2px;display:flex;align-items:center;gap:8px}
+.jt-date-head:first-child{margin-top:0}
+.jt-date-head::after{content:"";flex:1;height:1px;background:var(--line)}
 .jt-list-row{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:13px 16px;cursor:pointer;transition:box-shadow .14s,transform .14s}
 .jt-list-row:hover{box-shadow:0 8px 22px rgba(80,64,170,.15);transform:translateY(-2px);border-color:rgba(109,94,252,.35)}
 .jt-list-main{flex:1;min-width:0}
@@ -408,7 +415,6 @@ export default function App() {
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
-  const [priorityF, setPriorityF] = useState("all");
   const [levelF, setLevelF] = useState("all");
   const [sponsorF, setSponsorF] = useState("all");
   const [statusF, setStatusF] = useState("all");
@@ -471,7 +477,6 @@ export default function App() {
   };
 
   const matchesCore = (a) => {
-    if (priorityF !== "all" && a.priority !== priorityF) return false;
     if (levelF !== "all" && a.level !== levelF) return false;
     if (sponsorF !== "all" && a.sponsorship !== sponsorF) return false;
     if (query && !(a.company + " " + a.role).toLowerCase().includes(query.toLowerCase())) return false;
@@ -539,7 +544,6 @@ export default function App() {
               <div className="jt-search"><Search size={15} />
                 <input placeholder="Search company or role…" value={query} onChange={(e) => setQuery(e.target.value)} />
               </div>
-              <FilterSelect value={priorityF} onChange={setPriorityF} options={[["all", "All priorities"], ["dream", "Dream role"], ["high", "High"], ["medium", "Medium"], ["low", "Low"]]} />
               <FilterSelect value={levelF} onChange={setLevelF} options={[["all", "All levels"], ["internship", "Internship"], ["newgrad", "New grad"], ["entry", "Entry-level"], ["mid", "Mid-level"], ["senior", "Senior"]]} />
               <FilterSelect value={sponsorF} onChange={setSponsorF} options={[["all", "Any sponsorship"], ["confirmed", "Sponsors"], ["unknown", "Unverified"], ["no", "No sponsorship"]]} />
               <FilterSelect value={sortBy} onChange={setSortBy} options={[["newest", "Newest first"], ["oldest", "Oldest first"]]} />
@@ -562,9 +566,16 @@ export default function App() {
               : visible.length === 0 ? <div className="jt-empty">No roles match these filters.</div>
               : (
                 <div className="jt-list">
-                  {visible.map((a) => (
-                    <ListRow key={a.id} app={a} onOpen={() => setOpenId(a.id)} onDelete={() => removeApp(a.id)} onMove={(s) => moveTo(a.id, s)} />
-                  ))}
+                  {visible.map((a, i) => {
+                    const label = rowDay(a);
+                    const showHead = i === 0 || rowDay(visible[i - 1]) !== label;
+                    return (
+                      <React.Fragment key={a.id}>
+                        {showHead && <div className="jt-date-head">{label}</div>}
+                        <ListRow app={a} onOpen={() => setOpenId(a.id)} onDelete={() => removeApp(a.id)} onMove={(s) => moveTo(a.id, s)} />
+                      </React.Fragment>
+                    );
+                  })}
                 </div>
               )}
           </>
@@ -615,9 +626,7 @@ function Ring({ value }) {
 }
 
 function Card({ app, onOpen, onDelete, onMove, dragging, onDragStart, onDragEnd }) {
-  const sp = SPONSORSHIP[app.sponsorship], pr = PRIORITY[app.priority] || PRIORITY.medium, lv = LEVEL[app.level] || LEVEL.entry;
-  const today = new Date().toISOString().slice(0, 10);
-  const dueFollowUp = app.followUp && app.followUp <= today && app.stage !== "offer" && app.stage !== "closed";
+  const sp = SPONSORSHIP[app.sponsorship], lv = LEVEL[app.level] || LEVEL.entry;
   return (
     <div className={"jt-card" + (dragging ? " dragging" : "")} draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
       <div className="jt-card-top">
@@ -628,9 +637,7 @@ function Card({ app, onOpen, onDelete, onMove, dragging, onDragStart, onDragEnd 
         <GripVertical size={15} className="jt-grip" />
       </div>
       <div className="jt-pills">
-        {dueFollowUp && <span className="jt-pill" style={{ background: "#f3e6e6", color: "#a85d5d" }}>Follow up due</span>}
         <span className="jt-pill" style={{ background: sp.bg, color: sp.color }}>{sp.label}</span>
-        <span className="jt-pill" style={{ background: pr.bg, color: pr.color }}>{pr.label}</span>
         <span className="jt-pill" style={{ background: "rgba(120,108,255,.13)", color: "#3a3858" }}>{lv.label}</span>
         {app.workModel && <span className="jt-pill" style={{ background: "rgba(120,108,255,.13)", color: "#3a3858" }}>{app.workModel}</span>}
         {app.analysis && <span className="jt-pill" style={{ background: "#e7efe9", color: "#2f5d4f" }}>Match {app.analysis.coverageScore}%</span>}
@@ -653,13 +660,9 @@ function Card({ app, onOpen, onDelete, onMove, dragging, onDragStart, onDragEnd 
 
 // ============================ Add modal =====================================
 function ListRow({ app, onOpen, onDelete, onMove }) {
-  const sp = SPONSORSHIP[app.sponsorship], pr = PRIORITY[app.priority] || PRIORITY.medium, lv = LEVEL[app.level] || LEVEL.entry;
+  const sp = SPONSORSHIP[app.sponsorship], lv = LEVEL[app.level] || LEVEL.entry;
   const stage = STAGES.find((s) => s.id === app.stage) || STAGES[0];
-  const today = new Date().toISOString().slice(0, 10);
-  const dueFollowUp = app.followUp && app.followUp <= today && app.stage !== "offer";
-  const niceDate = (v) => v ? (typeof v === "number" ? new Date(v) : new Date(v + "T00:00:00")).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
-  const dateStr = app.dateApplied ? `Applied ${niceDate(app.dateApplied)}` : (app.createdAt ? `Added ${niceDate(app.createdAt)}` : "");
-  const subline = [app.role, app.platform, dateStr].filter(Boolean).join(" · ");
+  const subline = [app.role, app.platform].filter(Boolean).join(" · ");
   return (
     <div className="jt-list-row" onClick={onOpen}>
       <span className="jt-dot" style={{ background: stage.color, flexShrink: 0 }} title={stage.label} />
@@ -668,9 +671,7 @@ function ListRow({ app, onOpen, onDelete, onMove }) {
         {subline && <div className="jt-list-role">{subline}</div>}
       </div>
       <div className="jt-list-pills">
-        {dueFollowUp && <span className="jt-pill" style={{ background: "#f3e6e6", color: "#a85d5d" }}>Follow up due</span>}
         <span className="jt-pill" style={{ background: sp.bg, color: sp.color }}>{sp.label}</span>
-        <span className="jt-pill" style={{ background: pr.bg, color: pr.color }}>{pr.label}</span>
         <span className="jt-pill" style={{ background: "rgba(120,108,255,.13)", color: "#3a3858" }}>{lv.label}</span>
         {app.analysis && <span className="jt-pill" style={{ background: "#e7efe9", color: "#2f5d4f" }}>Match {app.analysis.coverageScore}%</span>}
         {app.contacts && app.contacts.length > 0 && <span className="jt-pill" style={{ background: "rgba(120,108,255,.13)", color: "#3a3858", display: "inline-flex", alignItems: "center", gap: 4 }}><Users size={11} />{app.contacts.length}</span>}
@@ -707,14 +708,9 @@ function AddModal({ onSave, onClose }) {
           <div className="jt-field"><label>Sponsorship</label>
             <div className="jt-hint">Does this employer sponsor work visas (e.g. H-1B)?</div>
             <select value={f.sponsorship} onChange={set("sponsorship")}><option value="confirmed">Sponsors visas</option><option value="unknown">Unverified</option><option value="no">No sponsorship</option></select></div>
-          <div className="jt-row">
-            <div className="jt-field"><label>Priority</label>
-              <div className="jt-hint">How much do you want this role?</div>
-              <select value={f.priority} onChange={set("priority")}><option value="dream">Dream role</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></div>
-            <div className="jt-field"><label>Role level</label>
-              <div className="jt-hint">Seniority the posting targets</div>
-              <select value={f.level} onChange={set("level")}><option value="internship">Internship</option><option value="newgrad">New grad</option><option value="entry">Entry-level · 0–2 yrs</option><option value="mid">Mid-level · 3–5 yrs</option><option value="senior">Senior · 6+ yrs</option></select></div>
-          </div>
+          <div className="jt-field"><label>Role level</label>
+            <div className="jt-hint">Seniority the posting targets</div>
+            <select value={f.level} onChange={set("level")}><option value="internship">Internship</option><option value="newgrad">New grad</option><option value="entry">Entry-level · 0–2 yrs</option><option value="mid">Mid-level · 3–5 yrs</option><option value="senior">Senior · 6+ yrs</option></select></div>
           <div className="jt-field"><label>Notes</label>
             <div className="jt-hint">Anything to remember — referral name, why it fits, deadlines…</div>
             <textarea value={f.notes} onChange={set("notes")} placeholder="Add any comments or notes about this role…" /></div>
@@ -1184,27 +1180,16 @@ function Workspace({ app, docLinks, onUpdate, onClose }) {
             <div className="jt-field"><label>Sponsorship</label>
               <div className="jt-hint">Does this employer sponsor work visas (e.g. H-1B)?</div>
               <select value={draft.sponsorship} onChange={set("sponsorship")}><option value="confirmed">Sponsors visas</option><option value="unknown">Unverified</option><option value="no">No sponsorship</option></select></div>
-            <div className="jt-row">
-              <div className="jt-field"><label>Priority</label>
-                <div className="jt-hint">How much do you want this role?</div>
-                <select value={draft.priority} onChange={set("priority")}><option value="dream">Dream role</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select></div>
-              <div className="jt-field"><label>Role level</label>
-                <div className="jt-hint">Seniority the posting targets</div>
-                <select value={draft.level} onChange={set("level")}><option value="internship">Internship</option><option value="newgrad">New grad</option><option value="entry">Entry-level · 0–2 yrs</option><option value="mid">Mid-level · 3–5 yrs</option><option value="senior">Senior · 6+ yrs</option></select></div>
-            </div>
+            <div className="jt-field"><label>Role level</label>
+              <div className="jt-hint">Seniority the posting targets</div>
+              <select value={draft.level} onChange={set("level")}><option value="internship">Internship</option><option value="newgrad">New grad</option><option value="entry">Entry-level · 0–2 yrs</option><option value="mid">Mid-level · 3–5 yrs</option><option value="senior">Senior · 6+ yrs</option></select></div>
             <div className="jt-row">
               <div className="jt-field"><label>Work model</label>
                 <select value={draft.workModel} onChange={set("workModel")}><option value="">—</option><option value="Remote">Remote</option><option value="Hybrid">Hybrid</option><option value="On-site">On-site</option></select></div>
               <div className="jt-field"><label>Location</label><input value={draft.location} onChange={set("location")} placeholder="e.g. New York, NY" /></div>
             </div>
-            <div className="jt-row">
-              <div className="jt-field"><label>Comp range</label><input value={draft.comp} onChange={set("comp")} placeholder="e.g. $95–115k" /></div>
-              <div className="jt-field"><label>Resume version sent</label>
-                <input list="jt-resumes" value={draft.resumeVersion} onChange={set("resumeVersion")} placeholder="Which resume you sent" />
-                <datalist id="jt-resumes">{(docLinks || []).map((l) => <option key={l.id} value={l.label} />)}</datalist></div>
-            </div>
-            <div className="jt-row"><div className="jt-field"><label>Date applied</label><input type="date" value={draft.dateApplied} onChange={set("dateApplied")} /></div>
-              <div className="jt-field"><label>Follow-up date</label><input type="date" value={draft.followUp} onChange={set("followUp")} /></div></div>
+            <div className="jt-field"><label>Comp range</label><input value={draft.comp} onChange={set("comp")} placeholder="e.g. $95–115k" /></div>
+            <div className="jt-field"><label>Date applied</label><input type="date" value={draft.dateApplied} onChange={set("dateApplied")} /></div>
             <div className="jt-field"><label>Next step</label><input value={draft.nextStep} onChange={set("nextStep")} placeholder="e.g. Email recruiter, send thank-you note" /></div>
             <div className="jt-field"><label>Notes</label><textarea value={draft.notes} onChange={set("notes")} placeholder="DOL data, why it fits…" /></div>
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".05em", marginTop: 8, marginBottom: 4 }}>Contacts</div>

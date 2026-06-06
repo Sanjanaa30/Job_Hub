@@ -223,9 +223,9 @@ def delete_file(fid: str):
 # ---- Excel export ----------------------------------------------------------
 STAGE_LABELS = {"saved": "Saved", "applied": "Applied", "interview": "Interview", "offer": "Offer"}
 COLUMNS = [
-    "Company", "Role", "Status", "Platform", "Sponsorship", "Priority", "Role level",
-    "Work model", "Location", "Comp range", "Resume version", "Date applied",
-    "Follow-up", "Next step", "Contacts", "Notes", "Link", "JD match %",
+    "Company", "Role", "Status", "Platform", "Sponsorship", "Role level",
+    "Work model", "Location", "Comp range", "Date applied",
+    "Next step", "Contacts", "Notes", "Link", "JD match %",
 ]
 
 
@@ -248,9 +248,9 @@ def build_apps_workbook():
         ws.append([
             a.get("company", ""), a.get("role", ""),
             STAGE_LABELS.get(a.get("stage", ""), a.get("stage", "")),
-            a.get("platform", ""), a.get("sponsorship", ""), a.get("priority", ""), a.get("level", ""),
-            a.get("workModel", ""), a.get("location", ""), a.get("comp", ""), a.get("resumeVersion", ""),
-            a.get("dateApplied", ""), a.get("followUp", ""), a.get("nextStep", ""), contacts,
+            a.get("platform", ""), a.get("sponsorship", ""), a.get("level", ""),
+            a.get("workModel", ""), a.get("location", ""), a.get("comp", ""),
+            a.get("dateApplied", ""), a.get("nextStep", ""), contacts,
             a.get("notes", ""), a.get("link", ""),
             analysis.get("coverageScore", ""),
         ])

@@ -66,20 +66,6 @@ ANTHROPIC_API_KEY=sk-ant-... docker compose up --build
 
 The image builds the frontend and serves it from FastAPI, and it respects the platform's `$PORT`, so it works on Render, Railway, Fly.io, a VPS, etc. without changes.
 
-## Putting it online (and using it on your phone)
-
-It's a website, so once it's deployed you just open the URL anywhere. Rough steps:
-
-1. Push the repo to GitHub.
-2. Make a service on Render/Railway/Fly from the repo (they read the Dockerfile).
-3. Add a managed Postgres and set `DATABASE_URL` to it. This is what lets your
-   laptop and phone see the same data — don't rely on SQLite in a container, a
-   restart wipes it.
-4. Set `ANTHROPIC_API_KEY`, `APP_PASSWORD`, and `DATABASE_URL` in the host's env.
-5. Deploy, open the URL, enter the password once, and your data's there.
-
-There's no live sync, so refresh after switching devices to pull the latest. Saves write the whole list at once, so don't edit on two devices at the exact same time.
-
 ## Environment variables
 
 Set these in `backend/.env` locally, or in the host's settings when deployed.
@@ -99,5 +85,3 @@ Set these in `backend/.env` locally, or in the host's settings when deployed.
 The key only lives in the backend environment (`.env` locally, host env vars in production) and is git-ignored, so it never ends up in the frontend or the repo.
 When `APP_PASSWORD` is set, every `/api` request needs it, so a stranger who finds the URL can't use your key. The proxy also pins the model and caps the response size server-side.
 
-If `claude-sonnet-4-6` ever goes away, set a current model in `ANTHROPIC_MODEL`
-(see the Anthropic models page).

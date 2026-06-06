@@ -1,0 +1,21 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      ANTHROPIC_MODEL: claude-sonnet-4-6
+      DATABASE_URL: postgresql://jobhub:jobhub@db:5432/jobhub
+    depends_on:
+      - db
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: jobhub
+      POSTGRES_PASSWORD: jobhub
+      POSTGRES_DB: jobhub
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:

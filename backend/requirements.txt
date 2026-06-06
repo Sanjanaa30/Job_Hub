@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+httpx
+python-dotenv
+openpyxl
+sqlalchemy
+psycopg2-binary
+python-multipart
+pypdf
+python-docx

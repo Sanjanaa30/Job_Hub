@@ -1,0 +1,16 @@
+# Secrets — never commit
+.env
+
+# Database
+*.db
+*.bak
+job-applications.xlsx
+
+# Python
+__pycache__/
+.venv/
+venv/
+
+# Node / Vite
+node_modules/
+dist/

@@ -413,6 +413,7 @@ export default function App() {
   const [sponsorF, setSponsorF] = useState("all");
   const [statusF, setStatusF] = useState("all");
   const [platformF, setPlatformF] = useState("all");
+  const [sortBy, setSortBy] = useState("newest");
   const [dragId, setDragId] = useState(null);
   const [dropCol, setDropCol] = useState(null);
   const [reBusy, setReBusy] = useState(false);
@@ -488,8 +489,11 @@ export default function App() {
   // Status chips: core + platform applied, status ignored
   const statusBase = apps.filter((a) => matchesCore(a) && matchesPlatform(a));
   const stageCount = (id) => statusBase.filter((a) => a.stage === id).length;
-  // Final visible list
-  const visible = apps.filter((a) => matchesCore(a) && matchesPlatform(a) && (statusF === "all" || a.stage === statusF));
+  // Final visible list, sorted by date
+  const dateTs = (a) => (a.dateApplied ? new Date(a.dateApplied).getTime() : (a.createdAt || 0));
+  const visible = apps
+    .filter((a) => matchesCore(a) && matchesPlatform(a) && (statusF === "all" || a.stage === statusF))
+    .sort((a, b) => sortBy === "oldest" ? dateTs(a) - dateTs(b) : dateTs(b) - dateTs(a));
   const openApp = apps.find((a) => a.id === openId);
 
   if (auth === "checking") return <div className="jt-root"><style>{css}</style><div className="jt-wrap"><div className="jt-empty">Loading…</div></div></div>;
@@ -538,6 +542,7 @@ export default function App() {
               <FilterSelect value={priorityF} onChange={setPriorityF} options={[["all", "All priorities"], ["dream", "Dream role"], ["high", "High"], ["medium", "Medium"], ["low", "Low"]]} />
               <FilterSelect value={levelF} onChange={setLevelF} options={[["all", "All levels"], ["internship", "Internship"], ["newgrad", "New grad"], ["entry", "Entry-level"], ["mid", "Mid-level"], ["senior", "Senior"]]} />
               <FilterSelect value={sponsorF} onChange={setSponsorF} options={[["all", "Any sponsorship"], ["confirmed", "Sponsors"], ["unknown", "Unverified"], ["no", "No sponsorship"]]} />
+              <FilterSelect value={sortBy} onChange={setSortBy} options={[["newest", "Newest first"], ["oldest", "Oldest first"]]} />
               <button className="jt-btn jt-ghost" onClick={reanalyzeAll} disabled={reBusy} style={{ marginLeft: "auto" }}
                 title="Re-run the match score for every role using each role's own resume">
                 {reBusy ? <><Loader2 size={15} className="jt-spin" /> Re-analyzing {reProg.done}/{reProg.total}…</> : <><Sparkles size={15} /> Re-analyze all</>}
@@ -652,12 +657,15 @@ function ListRow({ app, onOpen, onDelete, onMove }) {
   const stage = STAGES.find((s) => s.id === app.stage) || STAGES[0];
   const today = new Date().toISOString().slice(0, 10);
   const dueFollowUp = app.followUp && app.followUp <= today && app.stage !== "offer";
+  const niceDate = (v) => v ? (typeof v === "number" ? new Date(v) : new Date(v + "T00:00:00")).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "";
+  const dateStr = app.dateApplied ? `Applied ${niceDate(app.dateApplied)}` : (app.createdAt ? `Added ${niceDate(app.createdAt)}` : "");
+  const subline = [app.role, app.platform, dateStr].filter(Boolean).join(" · ");
   return (
     <div className="jt-list-row" onClick={onOpen}>
       <span className="jt-dot" style={{ background: stage.color, flexShrink: 0 }} title={stage.label} />
       <div className="jt-list-main">
         <div className="jt-list-co">{app.company || "Untitled"}</div>
-        {app.role && <div className="jt-list-role">{app.role}{app.platform ? ` · ${app.platform}` : ""}</div>}
+        {subline && <div className="jt-list-role">{subline}</div>}
       </div>
       <div className="jt-list-pills">
         {dueFollowUp && <span className="jt-pill" style={{ background: "#f3e6e6", color: "#a85d5d" }}>Follow up due</span>}

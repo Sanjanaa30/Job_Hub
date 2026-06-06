@@ -38,6 +38,9 @@ MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6").strip()
 MAX_TOKENS_CAP = int(os.environ.get("MAX_TOKENS_CAP", "1500"))
 ALLOWED_ORIGINS = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
 DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///./jobhub.db")
+# Some hosts (Render, Heroku) give a "postgres://" URL; SQLAlchemy needs "postgresql://".
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 STATIC_DIR = os.environ.get("STATIC_DIR", "").strip()
 # Optional shared password. If set, every /api call must send it (header
 # X-App-Password). Leave empty to run with no login (e.g. local only).

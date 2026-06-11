@@ -427,9 +427,25 @@ export default function App() {
   const [reProg, setReProg] = useState({ done: 0, total: 0 });
   const [reMsg, setReMsg] = useState(null);   // { ok: bool, text }
   const [auth, setAuth] = useState("checking");   // "checking" | "needed" | "ok"
+  const [loadError, setLoadError] = useState(false);
 
-  const loadData = () => Promise.all([load(APPS_KEY, []), load(NOTES_KEY, [])])
-    .then(([a, n]) => { setApps(a); setNotes(n); setLoading(false); });
+  // Throws on a failed/non-OK response, so we can tell "couldn't reach the
+  // server" apart from "you genuinely have no records".
+  const loadKey = async (key) => {
+    const res = await fetch(`${API_BASE}/api/data/${encodeURIComponent(key)}`, { headers: { ...authHeader() } });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    return data && data.value != null ? data.value : null;
+  };
+  const loadData = async () => {
+    setLoadError(false); setLoading(true);
+    try {
+      const [a, n] = await Promise.all([loadKey(APPS_KEY), loadKey(NOTES_KEY)]);
+      setApps(a || []); setNotes(n || []); setLoading(false);
+    } catch (e) {
+      setLoadError(true); setLoading(false);
+    }
+  };
 
   useEffect(() => {
     checkAuth().then((ok) => {
@@ -504,6 +520,17 @@ export default function App() {
 
   if (auth === "checking") return <div className="jt-root"><style>{css}</style><div className="jt-wrap"><div className="jt-empty">Loading…</div></div></div>;
   if (auth === "needed") return <LoginScreen onAuthed={() => { setAuth("ok"); loadData(); }} />;
+  if (loadError) return (
+    <div className="jt-root"><style>{css}</style>
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+        <div className="jt-modal sm" style={{ maxWidth: 440, margin: 0, textAlign: "center" }}>
+          <h2 className="jt-title" style={{ fontSize: 26, marginBottom: 6 }}>Couldn't load your data</h2>
+          <p className="jt-sub" style={{ marginTop: 0, marginBottom: 18 }}>Couldn't reach the server. On free hosting it may have been asleep — give it 30–60 seconds and retry. Your data is safe; this is just a connection issue.</p>
+          <button className="jt-btn jt-primary" style={{ width: "100%", justifyContent: "center" }} onClick={loadData}>Retry</button>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="jt-root">

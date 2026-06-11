@@ -39,7 +39,8 @@ const blankApp = () => ({
   sponsorship: "unknown", priority: "high", level: "entry", workModel: "", location: "", comp: "", resumeVersion: "",
   dateApplied: "", followUp: "", nextStep: "",
   notes: "", contacts: [], jd: "", analysis: null, coverLetter: "", createdAt: Date.now(),
-  resumeText: "", resumeId: null, resumeName: "",   // per-record resume
+  resumeText: "", resumeId: null, resumeName: "",            // resume used for match analysis
+  appliedResumeId: null, appliedResumeName: "",              // the actual resume submitted for this job
 });
 
 // ============================ Auth ==========================================
@@ -1097,10 +1098,25 @@ function Workspace({ app, docLinks, onUpdate, onClose }) {
   const [rUp, setRUp] = useState(false);
   const [rErr, setRErr] = useState("");
   const [preview, setPreview] = useState(false);
+  const [apUp, setApUp] = useState(false);
+  const [apErr, setApErr] = useState("");
+  const [previewFile, setPreviewFile] = useState(null);   // { id, name } for the applied-resume PDF preview
+  const [previewUrl, setPreviewUrl] = useState("");        // blob URL, or "error"
   // each role keeps its own resume
   const resume = draft.resumeText || "";
   const resumeName = draft.resumeName || "";
   const resumeId = draft.resumeId || null;
+
+  // load the applied resume as a blob (with the auth header) so it previews inline
+  useEffect(() => {
+    if (!previewFile) { setPreviewUrl(""); return; }
+    let url, cancelled = false;
+    fetch(`${API_BASE}/api/files/${previewFile.id}`, { headers: { ...authHeader() } })
+      .then((r) => { if (!r.ok) throw new Error(); return r.blob(); })
+      .then((b) => { if (!cancelled) { url = URL.createObjectURL(b); setPreviewUrl(url); } })
+      .catch(() => { if (!cancelled) setPreviewUrl("error"); });
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+  }, [previewFile]);
   const set = (k) => (e) => setDraft({ ...draft, [k]: e.target.value });
   const flush = (d) => { onUpdate(d); };
   const close = () => { onUpdate(draft); onClose(); };
@@ -1142,6 +1158,19 @@ function Workspace({ app, docLinks, onUpdate, onClose }) {
       setDraft(d); flush(d);
     } catch (err) { setRErr(err.message); }
     setRUp(false);
+  };
+  // the actual resume submitted for this job — just stored + previewable
+  const onUploadApplied = async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    setApErr(""); setApUp(true);
+    try {
+      const meta = await uploadResumeFile(file);
+      const d = { ...draft, appliedResumeId: meta.id, appliedResumeName: meta.name };
+      setDraft(d); flush(d);
+    } catch (err) { setApErr(err.message); }
+    setApUp(false);
   };
 
   const an = draft.analysis;
@@ -1190,6 +1219,26 @@ function Workspace({ app, docLinks, onUpdate, onClose }) {
             </div>
             <div className="jt-field"><label>Comp range</label><input value={draft.comp} onChange={set("comp")} placeholder="e.g. $95–115k" /></div>
             <div className="jt-field"><label>Date applied</label><input type="date" value={draft.dateApplied} onChange={set("dateApplied")} /></div>
+            <div className="jt-field">
+              <label>Resume used to apply</label>
+              <div className="jt-hint" style={{ margin: "0 0 8px" }}>The actual resume file you submitted for this job — saved with this record.</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <label className="jt-btn jt-ghost" style={{ cursor: apUp ? "default" : "pointer", opacity: apUp ? 0.55 : 1 }}>
+                  {apUp ? <><Loader2 size={15} className="jt-spin" /> Uploading…</> : <><Upload size={15} /> {draft.appliedResumeId ? "Replace file" : "Upload resume"}</>}
+                  <input type="file" accept=".pdf,.docx,.txt,.md" style={{ display: "none" }} disabled={apUp} onChange={onUploadApplied} />
+                </label>
+                {draft.appliedResumeId && (
+                  <span style={{ fontSize: 13, color: "#2f7d5b", display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <Check size={14} style={{ flexShrink: 0 }} />
+                    <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={draft.appliedResumeName || "Resume"}>{draft.appliedResumeName || "Resume"}</span>
+                    <button type="button" onClick={() => setPreviewFile({ id: draft.appliedResumeId, name: draft.appliedResumeName })}
+                      style={{ background: "none", border: "none", color: "var(--accent)", fontWeight: 600, cursor: "pointer", padding: 0, font: "inherit", display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0 }}>
+                      <Eye size={13} /> Preview</button>
+                  </span>
+                )}
+              </div>
+              {apErr && <div className="jt-note" style={{ background: "#f3e6e6", color: "#a85d5d", marginTop: 8 }}>{apErr}</div>}
+            </div>
             <div className="jt-field"><label>Next step</label><input value={draft.nextStep} onChange={set("nextStep")} placeholder="e.g. Email recruiter, send thank-you note" /></div>
             <div className="jt-field"><label>Notes</label><textarea value={draft.notes} onChange={set("notes")} placeholder="DOL data, why it fits…" /></div>
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: ".05em", marginTop: 8, marginBottom: 4 }}>Contacts</div>
@@ -1288,6 +1337,22 @@ function Workspace({ app, docLinks, onUpdate, onClose }) {
               <textarea style={{ minHeight: 360, fontSize: 14 }} value={draft.coverLetter} onChange={set("coverLetter")} placeholder="Your generated cover letter will appear here, fully editable…" />
             </div>
             <div className="jt-foot"><button className="jt-btn jt-primary" onClick={() => flush(draft)}>Save letter</button></div>
+          </div>
+        )}
+
+        {previewFile && (
+          <div className="jt-overlay" style={{ zIndex: 70 }} onMouseDown={(e) => e.target === e.currentTarget && setPreviewFile(null)}>
+            <div className="jt-modal" style={{ maxWidth: 940, display: "flex", flexDirection: "column", maxHeight: "92vh" }}>
+              <div className="jt-modal-head">
+                <h2 style={{ fontSize: 19, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{previewFile.name || "Resume"}</h2>
+                <button className="jt-icon" onClick={() => setPreviewFile(null)}><X size={20} /></button>
+              </div>
+              {previewUrl === "error"
+                ? <div className="jt-empty">Couldn't load the file — make sure the backend is running.</div>
+                : previewUrl
+                  ? <iframe title="Resume preview" src={previewUrl} style={{ flex: 1, width: "100%", minHeight: 520, border: "1px solid var(--line)", borderRadius: 10, background: "#fff", marginTop: 6 }} />
+                  : <div className="jt-empty" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}><Loader2 size={18} className="jt-spin" /> &nbsp;Loading preview…</div>}
+            </div>
           </div>
         )}
       </div>
